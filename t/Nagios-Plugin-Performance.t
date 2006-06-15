@@ -1,6 +1,6 @@
 
 use strict;
-use Test::More tests => 43;
+use Test::More tests => 49;
 BEGIN { use_ok('Nagios::Plugin::Performance') };
 
 use Nagios::Plugin::Base;
@@ -8,6 +8,7 @@ Nagios::Plugin::Base->exit_on_die(0);
 
 my @p = Nagios::Plugin::Performance->parse_perfstring("/=382MB;15264;15269;; /var=218MB;9443;9448");
 cmp_ok( $p[0]->label, 'eq', "/", "label okay");
+cmp_ok( $p[0]->rrdlabel, 'eq', "root", "rrd label okay");
 cmp_ok( $p[0]->value, '==', 382, "value okay");
 cmp_ok( $p[0]->uom, 'eq', "MB", "uom okay");
 cmp_ok( $p[0]->threshold->warning->end, "==", 15264, "warn okay");
@@ -16,6 +17,7 @@ ok( ! defined $p[0]->min, "min okay");
 ok( ! defined $p[0]->max, "max okay");
 
 cmp_ok( $p[1]->label, 'eq', "/var", "label okay");
+cmp_ok( $p[1]->rrdlabel, 'eq', "var", "rrd label okay");
 cmp_ok( $p[1]->value, '==', 218, "value okay");
 cmp_ok( $p[1]->uom, 'eq', "MB", "uom okay");
 cmp_ok( $p[1]->threshold->warning->end, "==", 9443, "warn okay");
@@ -63,5 +65,13 @@ cmp_ok( $p[0]->threshold->critical, 'eq', "10", "crit okay");
 cmp_ok( $p[1]->label, "eq", "size", "label okay");
 cmp_ok( $p[1]->value, "==", 426, "value okay");
 cmp_ok( $p[1]->uom, "eq", "B", "uom okay");
-    ok( ! defined $p[1]->threshold->warning, "warn okay");
-    ok( ! defined $p[1]->threshold->critical, "crit okay");
+    ok( ! $p[1]->threshold->warning->is_set, "warn okay");
+    ok( ! $p[1]->threshold->critical->is_set, "crit okay");
+
+# Edge cases
+@p = Nagios::Plugin::Performance->parse_perfstring("/home/a-m=0;0;0 shared-folder:big=20 12345678901234567890=20");
+cmp_ok( $p[0]->rrdlabel, "eq", "home_a_m", "changing / to _");
+    ok( $p[0]->threshold->warning->is_set, "Warning range has been set");
+cmp_ok( $p[1]->rrdlabel, "eq", "shared_folder_big", "replacing bad characters");
+cmp_ok( $p[2]->rrdlabel, "eq", "1234567890123456789", "shortening rrd label");
+
