@@ -1,12 +1,15 @@
 package Nagios::Plugin::Performance;
 
-use 5.008004;
+use 5.006;
 
 use strict;
 use warnings;
 
 use Carp;
 use Nagios::Plugin::Threshold;
+use Nagios::Plugin::Functions;
+our ($VERSION) = $Nagios::Plugin::Functions::VERSION;
+
 use Class::Struct;
 struct "Nagios::Plugin::Performance" => {
 	label => '$',
@@ -103,7 +106,11 @@ Once the performance string has been parsed, you can query the label, value, uom
 Returns an array of Nagios::Plugin::Performance objects based on the string entered. 
 If there is an error parsing the string, an empty array is returned.
 
+=back
+
 =head1 OBJECT METHODS
+
+=over 4
 
 =item label, value, uom, min, max
 
@@ -130,11 +137,11 @@ http://nagiosplug.sourceforge.net
 
 =head1 AUTHOR
 
-Ton Voon, E<lt>ton.voon@altinity.comE<gt>
+This code is maintained by the Nagios Plugin Development Team: http://nagiosplug.sourceforge.net
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2006 by Altinity Limited
+Copyright (C) 2006 Nagios Plugin Development Team
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.4 or,

@@ -1,12 +1,13 @@
 package Nagios::Plugin::Threshold;
 
-use 5.008004;
+use 5.006;
 
 use strict;
 use warnings;
 
 use Nagios::Plugin::Range;
-use Nagios::Plugin::Base;
+use Nagios::Plugin::Functions qw(:codes nagios_die);
+our ($VERSION) = $Nagios::Plugin::Functions::VERSION;
 
 use Class::Struct;
 struct "Nagios::Plugin::Threshold" => {
@@ -22,10 +23,7 @@ sub set_thresholds {
 		if (defined $r) {
 			$t->warning($r);
 		} else {
-			Nagios::Plugin::Base->die( {
-				return_code => $ERRORS{UNKNOWN}, 
-				message => "Warning range incorrect: '$args{warning}'"
-				} );
+			nagios_die( "Warning range incorrect: '$args{warning}'" );
 		}
 	}
 	if (defined $args{critical}) {
@@ -33,10 +31,7 @@ sub set_thresholds {
 		if (defined $r) {
 			$t->critical($r);
 		} else {
-			Nagios::Plugin::Base->die( {
-				return_code => $ERRORS{UNKNOWN}, 
-				message => "Critical range incorrect: '$args{critical}'"
-				} );
+			nagios_die( "Critical range incorrect: '$args{critical}'" );
 		}
 	}
 	return $t;
@@ -44,16 +39,18 @@ sub set_thresholds {
 
 sub get_status {
 	my ($self, $value) = @_;
+
 	if ($self->critical->is_set) {
 		if ($self->critical->check_range($value) == 1) {
-			return $ERRORS{CRITICAL};
+			return CRITICAL;
 		}
 	}
 	if ($self->warning->is_set) {
 		if ($self->warning->check_range($value) == 1) {
-			return $ERRORS{WARNING};
+			return WARNING;
 		}
 	}
+	return OK;
 }
 		
 1;
@@ -78,15 +75,17 @@ Returns the warning or critical range as a Nagios::Plugin::Range object.
 
 =item get_status($value)
 
-Given a value, will see if the value breeches the critical or the warning range. Returns the status code.
+Given a value, will see if the value breaches the critical or the warning range. Returns the status code.
+
+=back
 
 =head1 AUTHOR
 
-Ton Voon, E<lt>ton.voon@altinity.comE<gt>
+This code is maintained by the Nagios Plugin Development Team: http://nagiosplug.sourceforge.net
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2006 by Altinity Limited
+Copyright (C) 2006 Nagios Plugin Development Team
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.4 or,
