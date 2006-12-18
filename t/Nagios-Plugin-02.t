@@ -151,7 +151,7 @@ for (@ok) {
 # shortname testing
 SKIP: {
     skip "requires File::Basename", 2 unless eval { require File::Basename };
-    $np = Nagios::Plugin->new;
+    $np = Nagios::Plugin->new( version => "1");
     $plugin = uc File::Basename::basename($0);
     $plugin =~ s/\..*$//;
     is($np->shortname, $plugin, "shortname() is '$plugin'");
