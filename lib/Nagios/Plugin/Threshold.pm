@@ -5,91 +5,122 @@ use 5.006;
 use strict;
 use warnings;
 
+use base qw(Class::Accessor::Fast);
+__PACKAGE__->mk_accessors(qw(warning critical));
+
 use Nagios::Plugin::Range;
 use Nagios::Plugin::Functions qw(:codes nagios_die);
 our ($VERSION) = $Nagios::Plugin::Functions::VERSION;
 
-use Class::Struct;
-struct "Nagios::Plugin::Threshold" => {
-	warning => 'Nagios::Plugin::Range',
-	critical => 'Nagios::Plugin::Range',
-	};
-
-sub set_thresholds {
-	my ($class, %args) = @_;
-	my $t = $class->new( warning => Nagios::Plugin::Range->new, critical => Nagios::Plugin::Range->new );
-	if (defined $args{warning}) {
-		my $r = Nagios::Plugin::Range->parse_range_string($args{warning});
-		if (defined $r) {
-			$t->warning($r);
-		} else {
-			nagios_die( "Warning range incorrect: '$args{warning}'" );
-		}
-	}
-	if (defined $args{critical}) {
-		my $r = Nagios::Plugin::Range->parse_range_string($args{critical});
-		if (defined $r) {
-			$t->critical($r);
-		} else {
-			nagios_die( "Critical range incorrect: '$args{critical}'" );
-		}
-	}
-	return $t;
-}
-
-sub get_status {
+sub get_status 
+{
 	my ($self, $value) = @_;
 
 	if ($self->critical->is_set) {
-		if ($self->critical->check_range($value) == 1) {
-			return CRITICAL;
-		}
+		return CRITICAL if $self->critical->check_range($value);
 	}
 	if ($self->warning->is_set) {
-		if ($self->warning->check_range($value) == 1) {
-			return WARNING;
-		}
+		return WARNING if $self->warning->check_range($value);
 	}
 	return OK;
 }
+
+sub _inflate
+{
+    my ($self, $value, $key) = @_;
+
+    # Return an undefined range if $value is undef
+    return Nagios::Plugin::Range->new if ! defined $value;
+
+    # For refs, check isa N::P::Range
+    if (ref $value) {
+        nagios_die("Invalid $key object: type " . ref $value)
+            unless $value->isa("Nagios::Plugin::Range");
+        return $value;
+    }
+
+    # Otherwise parse $value
+    my $range = Nagios::Plugin::Range->parse_range_string($value) 
+        or nagios_die("Cannot parse $key range: '$value'");
+    return $range;
+}
+
+sub set_thresholds
+{
+	my ($self, %arg) = @_;
+
+    # Equals new() as a class method
+    return $self->new(%arg) unless ref $self;
+
+    # On an object, just acts as special mutator
+    $self->set($_, $arg{$_}) foreach qw(warning critical);
+}
+
+sub set
+{
+    my $self = shift;
+    my ($key, $value) = @_;
+    $self->SUPER::set($key, $self->_inflate($value, $key));
+}
 		
+# Constructor - inflate scalars to N::P::Range objects
+sub new 
+{
+    my ($self, %arg) = @_;
+    $self->SUPER::new({
+        map { $_ => $self->_inflate($arg{$_}, $_) } qw(warning critical)
+    });
+}
+
 1;
+
 __END__
 
 =head1 NAME
 
-Nagios::Plugin::Threshold - Threshold information in a perl object
+Nagios::Plugin::Threshold - class for handling Nagios::Plugin thresholds.
+
+=head1 SYNOPSIS
+
+    # NB: This is an internal Nagios::Plugin class.
+    # See Nagios::Plugin itself for public interfaces.
+  
+    # Constructor
+    $t = Nagios::Plugin::Threshold->set_thresholds(
+        warning  => $warning_range_string,
+        critical => $critical_range_string,
+    );
+
+    # Value checking - returns CRITICAL if in the critical range,
+    # WARNING if in the warning range, and OK otherwise
+    $status = $t->get_status($value);
+
+    # Accessors - return the associated N::P::Range object
+    $warning_range  = $t->warning;
+    $critical_range = $t->critical;
+
 
 =head1 DESCRIPTION
 
-Handles common Nagios Plugin threshold data. See Nagios::Plugin or Nagios::Plugin::Performance for 
-creation of this object.
+Internal Nagios::Plugin class for handling threshold data. See 
+Nagios::Plugin for public interfaces.
 
-=head1 OBJECT METHODS
+A threshold object contains (typically) a pair of ranges, associated 
+with a particular severity e.g.
 
-=over 4
-
-=item warning, critical
-
-Returns the warning or critical range as a Nagios::Plugin::Range object.
-
-=item get_status($value)
-
-Given a value, will see if the value breaches the critical or the warning range. Returns the status code.
-
-=back
+  warning  => range1
+  critical => range2
 
 =head1 AUTHOR
 
-This code is maintained by the Nagios Plugin Development Team: http://nagiosplug.sourceforge.net
+This code is maintained by the Nagios Plugin Development Team: see
+http://nagiosplug.sourceforge.net.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2006 Nagios Plugin Development Team
+Copyright (C) 2006-2007 Nagios Plugin Development Team
 
 This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.4 or,
-at your option, any later version of Perl 5 you may have available.
-
+it under the same terms as Perl itself.
 
 =cut

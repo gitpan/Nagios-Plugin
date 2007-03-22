@@ -13,6 +13,7 @@ use Params::Validate qw(:all);
 use base qw(Class::Accessor);
 
 use Nagios::Plugin::Functions;
+use Nagios::Plugin::Config;
 use vars qw($VERSION);
 $VERSION = $Nagios::Plugin::Functions::VERSION;
 
@@ -35,6 +36,9 @@ my @ARGS = ({
   }, {
     spec => 'version|V',
     help => "-V, --version\n   Print version information",
+  }, {
+    spec => 'extra-opts:s@',
+    help => "--extra-opts=[<section>[@<config_file>]]\n   Section and/or config_file from which to load extra options (may repeat)",
   }, {
     spec => 'timeout|t=i',
     help => "-t, --timeout=INTEGER\n   Seconds before plugin times out (default: %s)",
@@ -71,6 +75,37 @@ sub _attr
   $self->{_attr}->{$item} . "\n" . $extra;
 }
 
+# Turn argument spec into help-style output
+sub _spec_to_help
+{
+  my ($self, $spec, $label) = @_;
+
+  my ($opts, $type) = split /=/, $spec, 2;
+  my (@short, @long);
+  for (split /\|/, $opts) {
+    if (length $_ == 1) {
+      push @short, "-$_";
+    } else {
+      push @long, "--$_";
+    }
+  }
+
+  my $help = join(', ', @short, @long);
+  if ($type) {
+    if ($label) {
+      $help .= '=' . $label;
+    }
+    else {
+      $help .= $type eq 'i' ? '=INTEGER' : '=STRING';
+    }
+  }
+  elsif ($label) {
+    carp "Label specified, but there's no type in spec '$spec'";
+  }
+  $help .= "\n   ";
+  return $help;
+}
+
 # Options output for plugin -h
 sub _options
 {
@@ -88,10 +123,29 @@ sub _options
 
   my @options = ();
   for my $arg (@args, @defer) {
-    if ($arg->{help} =~ m/%s/) {
-      push @options, sprintf($arg->{help}, $arg->{default} || '');
+    my $help_array = ref $arg->{help} && ref $arg->{help} eq 'ARRAY' ? $arg->{help} : [ $arg->{help} ];
+    my $label_array = $arg->{label} && ref $arg->{label} && ref $arg->{label} eq 'ARRAY' ? $arg->{label} : [ $arg->{label} ];
+    my $help_string = '';
+    for (my $i = 0; $i <= $#$help_array; $i++) {
+      my $help = $help_array->[$i];
+      # Add spec arguments to help if not already there
+      if ($help =~ m/^\s*-/) {
+        $help_string .= $help;
+      }
+      else {
+        $help_string .= $self->_spec_to_help($arg->{spec}, $label_array->[$i]) . $help;
+        $help_string .= "\n " if $i < $#$help_array;
+      }
+    }
+
+    # Add help_string to @options
+    if ($help_string =~ m/%s/) {
+      my $default = defined $arg->{default} ? $arg->{default} : '';
+      # We only handle '%s' formats here, so escape everything else
+      $help_string =~ s/%(?!s)/%%/g;
+      push @options, sprintf($help_string, $default, $default, $default, $default);
     } else {
-      push @options, $arg->{help};
+      push @options, $help_string;
     }
   }
 
@@ -140,7 +194,7 @@ sub _process_specs_getopt_long
     # Setup names and defaults
     my $spec = $arg->{spec};
     # Use first arg as name (like Getopt::Long does)
-    $spec =~ s/=\w+$//;
+    $spec =~ s/[=:].*$//;
     my $name = (split /\s*\|\s*/, $spec)[0];
     $arg->{name} = $name;
     if (defined $self->{$name}) {
@@ -182,6 +236,125 @@ sub _process_opts
 }
 
 # -------------------------------------------------------------------------
+# Default opts methods
+
+sub _load_config_section
+{
+  my $self = shift;
+  my ($section, $file, $flags) = @_;
+  $section ||= $self->{_attr}->{plugin};
+
+  my $Config = Nagios::Plugin::Config->read($file);
+
+  # TODO: is this check sane? Does --extra-opts=foo require a [foo] section?
+  $self->_die("Invalid section '$section' in config file '$file'")
+    unless exists $Config->{$section};
+
+  return $Config->{$section};
+}
+
+# Helper method to setup a hash of spec definitions for _cmdline
+sub _setup_spec_index
+{
+  my $self = shift;
+  return if defined $self->{_spec};
+  $self->{_spec} = { map { $_->{name} => $_->{spec} } @{$self->{_args}} };
+}
+
+# Quote values that require it
+sub _cmdline_value
+{
+  my $self = shift;
+  local $_ = shift;
+  if (m/\s/ && (m/^[^"']/ || m/[^"']$/)) {
+    return qq("$_");
+  }
+  elsif ($_ eq '') {
+    return q("");
+  }
+  else {
+    return $_;
+  }
+}
+
+# Helper method to format key/values in $hash in a quasi-commandline format
+sub _cmdline
+{
+  my $self = shift;
+  my ($hash) = @_;
+  $hash ||= $self;
+
+  $self->_setup_spec_index;
+
+  my @args = ();
+  for my $key (sort keys %$hash) {
+    # Skip internal keys
+    next if $key =~ m/^_/;
+
+    # Skip defaults and internals
+    next if exists $DEFAULT{$key} && $hash->{$key} eq $DEFAULT{$key}; 
+    next if grep { $key eq $_ } qw(help usage version extra-opts);
+    next unless defined $hash->{$key};
+
+    # Render arg
+    my $spec = $self->{_spec}->{$key} || '';
+    if ($spec =~ m/[=:].+$/) {
+      # Arg takes value - may be a scalar or an arrayref
+      for my $value (ref $hash->{$key} eq 'ARRAY' ? @{$hash->{$key}} : ( $hash->{$key} )) {
+        $value = $self->_cmdline_value($value);
+        if (length($key) > 1) {
+          push @args, sprintf "--%s=%s", $key, $value;
+        } 
+        else {
+          push @args, "-$key", $value;
+        }
+      }
+    }
+
+    else {
+      # Flag - render long or short based on option length
+      push @args, (length($key) > 1 ? '--' : '-') . $key;
+    }
+  }
+
+  return wantarray ? @args : join(' ', @args);
+}
+
+# Process and load extra-opts sections
+sub _process_extra_opts
+{
+  my $self = shift;
+  my ($args) = @_;
+
+  my $extopts_list = $args->{'extra-opts'};
+
+  my @sargs = ();
+  for my $extopts (@$extopts_list) {
+    $extopts ||= $self->{_attr}->{plugin};
+    my $section = $extopts;
+    my $file = '';
+
+    # Parse section@file
+    if ($extopts =~ m/^(\w*)@(.*?)\s*$/) {
+      $section = $1;
+      $file = $2;
+    }
+
+    # Load section args
+    my $shash = $self->_load_config_section($section, $file);
+
+    # Turn $shash into a series of commandline-like arguments
+    push @sargs, $self->_cmdline($shash);
+  }
+
+  # Reset ARGV to extra-opts + original
+  @ARGV = ( @sargs, @{$self->{_attr}->{argv}} );
+
+  printf "[extra-opts] %s %s\n", $self->{_attr}->{plugin}, join(' ', @ARGV)
+    if $args->{verbose} && $args->{verbose} >= 3;
+}
+
+# -------------------------------------------------------------------------
 # Public methods
 
 # Define plugin argument
@@ -197,17 +370,19 @@ sub arg
       help => 1,
       default => 0,
       required => 0,
+      label => 0,
     });
   }
 
   # Positional args
   else {
-    my @args = validate_pos(@_, 1, 1, 0, 0);
+    my @args = validate_pos(@_, 1, 1, 0, 0, 0);
     %args = (
       spec      => $args[0],
       help      => $args[1],
       default   => $args[2],
       required  => $args[3],
+      label     => $args[4],
     );
   }
 
@@ -223,10 +398,21 @@ sub getopts
   # Collate spec arguments for Getopt::Long
   my @opt_array = $self->_process_specs_getopt_long;
 
-  # Call GetOptions using @opt_array
-  my $ok = GetOptions($self, @opt_array);
+  # Capture original @ARGV (for extra-opts games)
+  $self->{_attr}->{argv} = [ @ARGV ];
 
-  # Invalid options - given usage message and exit
+  # Call GetOptions using @opt_array
+  my $args1 = {};
+  my $ok = GetOptions($args1, @opt_array);
+  # Invalid options - give usage message and exit
+  $self->_die($self->_usage) unless $ok;
+
+  # Process extra-opts
+  $self->_process_extra_opts($args1);
+
+  # Call GetOptions again, this time including extra-opts
+  $ok = GetOptions($self, @opt_array);
+  # Invalid options - give usage message and exit
   $self->_die($self->_usage) unless $ok;
 
   # Process immediate options (possibly exiting)
@@ -264,6 +450,7 @@ sub _init
     plugin => { default => $plugin },
     blurb => 0,
     extra => 0,
+    'extra-opts' => 0,
     license => { default => $DEFAULT{license} },
     timeout => { default => $DEFAULT{timeout} },
   });
@@ -295,11 +482,8 @@ __END__
 
 =head1 NAME
 
-Nagios::Plugin::Getopt - OO perl module providing standardised argument processing for Nagios plugins
-
-=head1 VERSION
-
-This documentation applies to version 0.01 of Nagios::Plugin::Getopt.
+Nagios::Plugin::Getopt - OO perl module providing standardised argument 
+processing for Nagios plugins
 
 
 =head1 SYNOPSIS
@@ -308,17 +492,16 @@ This documentation applies to version 0.01 of Nagios::Plugin::Getopt.
 
   # Instantiate object (usage is mandatory)
   $ng = Nagios::Plugin::Getopt->new(
-    usage => "Usage: %s -H <host> -w <warning_threshold> 
-  -c <critical threshold>",
-    version => '0.01',
+    usage => "Usage: %s -H <host> -w <warning> -c <critical>",
+    version => '0.1',
     url => 'http://www.openfusion.com.au/labs/nagios/',
     blurb => 'This plugin tests various stuff.', 
   );
 
   # Add argument - named parameters (spec and help are mandatory)
   $ng->arg(
-    spec => 'critical|c=s',
-    help => qq(-c, --critical=INTEGER\n   Exit with CRITICAL status if fewer than INTEGER foobars are free),
+    spec => 'critical|c=i',
+    help => q(Exit with CRITICAL status if fewer than INTEGER foobars are free),
     required => 1,
     default => 10,
   );
@@ -326,8 +509,8 @@ This documentation applies to version 0.01 of Nagios::Plugin::Getopt.
   # Add argument - positional parameters - arg spec, help text, 
   #   default value, required? (first two mandatory)
   $ng->arg(
-    'warning|w=s',
-    qq(-w, --warning=INTEGER\n   Exit with WARNING status if fewer than INTEGER foobars are free),
+    'warning|w=i',
+    q(Exit with WARNING status if fewer than INTEGER foobars are free),
     5,
     1);
 
@@ -401,9 +584,10 @@ License text, included in the longer --help output (see below for an
 example). By default, this is set to the standard nagios plugins
 GPL license text:
 
-  This nagios plugin is free software, and comes with ABSOLUTELY NO WARRANTY. 
-  It may be used, redistributed and/or modified under the terms of the GNU 
-  General Public Licence (see http://www.fsf.org/licensing/licenses/gpl.txt).
+  This nagios plugin is free software, and comes with ABSOLUTELY 
+  NO WARRANTY. It may be used, redistributed and/or modified under 
+  the terms of the GNU General Public Licence (see 
+  http://www.fsf.org/licensing/licenses/gpl.txt).
 
 Provide your own to replace this text in the help output.
 
@@ -459,8 +643,8 @@ example:
    -H, --hostname=ADDRESS
      Host name or IP address
    -p, --ports=STRING
-     Port numbers to check. Format: comma-separated, colons or hyphens for ranges,
-     no spaces e.g. 8700:8705,8710-8715,8760 
+     Port numbers to check. Format: comma-separated, colons for ranges,
+     no spaces e.g. 8700:8705,8710:8715,8760 
    -t, --timeout=INTEGER
      Seconds before plugin times out (default: 15)
    -v, --verbose
@@ -471,21 +655,25 @@ example:
 
 You can define arguments for your plugin using the arg() method, which 
 supports both named and positional arguments. In both cases
-the 'spec' and 'help' arguments are required, while the 'default' 
-and 'required' arguments are optional:
+the C<spec> and C<help> arguments are required, while the C<label>, 
+C<default>, and C<required> arguments are optional:
 
   # Define --hello argument (named parameters)
   $ng->arg(
-    spec => 'hello=s', 
-    help => "--hello\n   Hello string",
+    spec => 'hello|h=s', 
+    help => "Hello string",
     required => 1,
   );
 
   # Define --hello argument (positional parameters)
-  #   Parameter order is 'spec', 'help', 'default', 'required?'
-  $ng->arg('hello=s', "--hello\n   Hello string", undef, 1);
+  #   Parameter order is 'spec', 'help', 'default', 'required?', 'label'
+  $ng->arg('hello|h=s', "Hello parameter (default %s)", 5, 1);
 
-The 'spec' argument (the first argument in the positional variant) is a
+=over 4
+
+=item spec
+
+The C<spec> argument (the first argument in the positional variant) is a
 L<Getopt::Long> argument specification. See L<Getopt::Long> for the details,
 but basically it is a series of one or more argument names for this argument
 (separated by '|'), suffixed with an '=<type>' indicator if the argument
@@ -507,24 +695,105 @@ and so on. The following are some examples:
 
 =back
 
-The 'help' argument is a string displayed in the --help option list output. 
-If the string contains a '%s' it will be formatted via L<sprintf> with the
-'default' as the argument i.e.
+=item help
+
+The C<help> argument is a string displayed in the --help option list output,
+or it can be a list (an arrayref) of such strings, for multi-line help (see
+below).
+
+The help string is munged in two ways:
+
+=over 4
+
+=item
+
+First, if the help string does NOT begins with a '-' sign, it is prefixed 
+by an expanded form of the C<spec> argument. For instance, the following 
+hello argument:
+
+  $ng->arg(
+    spec => 'hello|h=s', 
+    help => "Hello string",
+  );
+
+would be displayed in the help output as:
+
+  -h, --hello=STRING
+    Hello string
+
+where the '-h, --hello=STRING' part is derived from the spec definition
+(by convention with short args first, then long, then label/type, if any).
+
+=item 
+
+Second, if the string contains a '%s' it will be formatted via 
+C<sprintf> with the 'default' as the argument i.e.
 
   sprintf($help, $default)
 
-A gotcha is that standard percentage signs also need to be escaped 
-(i.e. '%%') in this case.
+=back
 
-The 'default' argument is the default value to be given to this parameter
+Multi-line help is useful in cases where an argument can be of different types
+and you want to make this explicit in your help output e.g.
+
+  $ng->arg(
+    spec => 'warning|w=s',
+    help => [
+      'Exit with WARNING status if less than BYTES bytes of disk are free',
+      'Exit with WARNING status if less than PERCENT of disk is free',
+    ],
+    label => [ 'BYTES', 'PERCENT%' ],
+  );
+
+would be displayed in the help output as:
+
+ -w, --warning=BYTES
+    Exit with WARNING status if less than BYTES bytes of disk are free
+ -w, --warning=PERCENT%
+    Exit with WARNING status if less than PERCENT of disk space is free
+
+Note that in this case we've also specified explicit labels in another
+arrayref corresponding to the C<help> one - if this had been omitted 
+the types would have defaulted to 'STRING', instead of 'BYTES' and 
+'PERCENT%'.
+
+
+=item label
+
+The C<label> argument is a scalar or an arrayref (see 'Multi-line help' 
+description above) that overrides the standard type expansion when generating
+help text from the spec definition. By default, C<spec=i> arguments are 
+labelled as C<=INTEGER> in the help text, and C<spec=s> arguments are labelled 
+as C<=STRING>. By supplying your own C<label> argument you can override these 
+standard 'INTEGER' and 'STRING' designations.
+
+For multi-line help, you can supply an ordered list (arrayref) of labels to
+match the list of help strings e.g.
+
+  label => [ 'BYTES', 'PERCENT%' ]
+
+Any labels that are left as undef (or just omitted, if trailing) will just
+use the default 'INTEGER' or 'STRING' designations e.g.
+
+  label => [ undef, 'PERCENT%' ]
+
+
+=item default
+
+The C<default> argument is the default value to be given to this parameter
 if none is explicitly supplied.
 
-The 'required' argument is a boolean used to indicate that this argument 
+
+=item required
+
+The C<required> argument is a boolean used to indicate that this argument 
 is mandatory (Nagios::Plugin::Getopt will exit with your usage message and 
 a 'Missing argument' indicator if any required arguments are not supplied).
 
+=back
+
 Note that --help lists your arguments in the order they are defined, so 
-you might want to order your arg() calls accordingly.
+you should order your C<arg()> calls accordingly.
 
 
 =head2 GETOPTS
@@ -559,14 +828,14 @@ using their long variant names.
 
 =head2 BUILTIN PROCESSING
 
-The getopts() method also handles processing of the immediate builtin 
+The C<getopts()> method also handles processing of the immediate builtin 
 arguments, namely --usage, --version, --help, as well as checking all
 required arguments have been supplied, so you don't have to handle
 those yourself. This means that your plugin will exit from the getopts()
 call in these cases - if you want to catch that you can run getopts()
 within an eval{}.
 
-getopts() also sets up a default ALRM timeout handler so you can use an
+C<getopts()> also sets up a default ALRM timeout handler so you can use an
 
   alarm $ng->timeout;
 
@@ -586,7 +855,7 @@ Gavin Carr <gavin@openfusion.com.au>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2006 by the Nagios Plugin Development Team.
+Copyright (C) 2006-2007 by the Nagios Plugin Development Team.
 
 This module is free software. It may be used, redistributed
 and/or modified under either the terms of the Perl Artistic 

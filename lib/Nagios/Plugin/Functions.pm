@@ -9,20 +9,21 @@ use strict;
 use warnings;
 use File::Basename;
 use Params::Validate qw(validate :types);
+use Math::Calc::Units;
 
 # Remember to update Nagios::Plugins as well
-our $VERSION = "0.15";
+our $VERSION = "0.16";
 
 our @STATUS_CODES = qw(OK WARNING CRITICAL UNKNOWN DEPENDENT);
 
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = (@STATUS_CODES, qw(nagios_exit nagios_die check_messages));
-our @EXPORT_OK = qw(%ERRORS %STATUS_TEXT @STATUS_CODES get_shortname);
+our @EXPORT_OK = qw(%ERRORS %STATUS_TEXT @STATUS_CODES get_shortname max_state convert);
 our %EXPORT_TAGS = (
     all => [ @EXPORT, @EXPORT_OK ],
     codes => [ @STATUS_CODES ],
-    functions => [ qw(nagios_exit nagios_die check_messages) ],
+    functions => [ qw(nagios_exit nagios_die check_messages max_state convert) ],
 );
 
 use constant OK         => 0;
@@ -54,6 +55,15 @@ sub get_shortname {
     $shortname =~ s/^CHECK_//;     # Remove any leading CHECK_
     $shortname =~ s/\..*$//;       # Remove any trailing suffix
     return $shortname;
+}
+
+sub max_state {
+	return CRITICAL if grep { $_ == CRITICAL } @_;
+	return WARNING if grep { $_ == WARNING } @_;
+	return OK if grep { $_ == OK } @_;
+	return UNKNOWN if grep { $_ == UNKNOWN } @_;
+	return DEPENDENT if grep { $_ == DEPENDENT } @_;
+	return UNKNOWN;
 }
 
 # nagios_exit( $code, $message )
@@ -141,6 +151,17 @@ sub die { nagios_die(@_); }
 
 
 # ------------------------------------------------------------------------
+# Utility functions
+
+# Simple wrapper around Math::Calc::Units::convert
+sub convert
+{
+    my ($value, $from, $to) = @_;
+    my ($newval) = Math::Calc::Units::convert("$value $from", $to, 'exact');
+    return $newval;
+}
+
+# ------------------------------------------------------------------------
 # check_messages - return a status and/or message based on a set of 
 #   message arrays.
 #   Returns a nagios status code in scalar context. 
@@ -197,7 +218,7 @@ __END__
 =head1 NAME
 
 Nagios::Plugin::Functions - functions to simplify the creation of 
-Nagios plugins.
+Nagios plugins
 
 =head1 SYNOPSIS
 
@@ -259,6 +280,7 @@ The following variables and functions are exported only on request:
     %ERRORS
     %STATUS_TEXT
     get_shortname
+    max_state
 
 
 =head2 FUNCTIONS
@@ -333,8 +355,6 @@ If join_all is supplied, however, it will be used as a string to
 join the resultant critical, warning, and ok messages together i.e.
 all messages are joined and returned.
 
-=back
-
 =item get_shortname
 
 Return the default shortname used for this plugin i.e. the first
@@ -347,8 +367,12 @@ with any leading 'CHECK_' and trailing file suffixes removed.
 get_shortname is not exported by default, so must be explicitly
 imported.
 
-=back
+=item max_state(@a)
 
+Returns the worst state in the array. Order is: CRITICAL, WARNING, OK, UNKNOWN,
+DEPENDENT
+
+=back
 
 =head1 SEE ALSO
 
@@ -366,7 +390,6 @@ This code is maintained by the Nagios Plugin Development Team: http://nagiosplug
 Copyright (C) 2006 by Nagios Plugin Development Team
 
 This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.4 or,
-at your option, any later version of Perl 5 you may have available.
+it under the same terms as Perl itself.
 
 =cut
