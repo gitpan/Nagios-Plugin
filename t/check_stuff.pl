@@ -11,7 +11,7 @@
 # the really cool Nagios monitoring scripts you're going to create.
 # You rock.  
 
-# $Id: check_stuff.pl,v 1.3 2006/11/17 21:48:22 n8v Exp $
+# $Id: check_stuff.pl 1539 2006-11-17 21:48:22Z n8v $
 
 ##############################################################################
 # prologue
@@ -21,7 +21,7 @@ use warnings;
 use Nagios::Plugin ;
 
 use vars qw($VERSION $PROGNAME  $verbose $warn $critical $timeout $result);
-'$Revision: 1.3 $' =~ /^.*(\d+.\d+) \$$/;  # Use The Revision from RCS/CVS/Subversion
+'$Revision: 1539 $' =~ /^.*(\d+.\d+) \$$/;  # Use The Revision from RCS/CVS/Subversion
 $VERSION = $1;
 
 # get the base name of this script for use in the examples
