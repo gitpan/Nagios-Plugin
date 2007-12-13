@@ -1,10 +1,11 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Nagios-Plugin
-version:      0.21
-version_from: lib/Nagios/Plugin/Functions.pm
-installdirs:  site
-requires:
+--- #YAML:1.0
+name:                Nagios-Plugin
+version:             0.22
+abstract:            A family of perl modules to streamline writing Nagios 
+license:             ~
+generated_by:        ExtUtils::MakeMaker version 6.3101
+distribution_type:   module
+requires:     
     Carp:                          0
     Class::Accessor:               0
     Config::Tiny:                  0
@@ -14,6 +15,8 @@ requires:
     Math::Calc::Units:             0
     Params::Validate:              0
     Test::More:                    0.62
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.17
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.2.html
+    version: 1.2
+author:
+    - Nagios Plugin Development Team <nagiosplug-devel@lists.sourceforge.net>
