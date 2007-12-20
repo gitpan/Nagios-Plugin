@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Nagios-Plugin
-version:             0.22
+version:             0.23
 abstract:            A family of perl modules to streamline writing Nagios 
 license:             ~
 generated_by:        ExtUtils::MakeMaker version 6.3101
