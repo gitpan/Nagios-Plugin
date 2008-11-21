@@ -25,7 +25,7 @@ our @EXPORT_OK = qw(%ERRORS);
 # CPAN stupidly won't index this module without a literal $VERSION here,
 #   so we're forced to duplicate it explicitly
 # Make sure you update $Nagios::Plugin::Functions::VERSION too
-our $VERSION = "0.27";
+our $VERSION = "0.28";
 
 sub new {
 	my $class = shift;
@@ -98,6 +98,12 @@ sub nagios_die {
 sub die {
     my $self = shift;
     Nagios::Plugin::Functions::nagios_die(@_, { plugin => $self });
+}
+sub max_state {
+    Nagios::Plugin::Functions::max_state(@_);
+}
+sub max_state_alt {
+    Nagios::Plugin::Functions::max_state_alt(@_);
 }
 
 # Override default shortname accessor to add default
@@ -482,6 +488,11 @@ Set C<$_use_die> flag if this functionality is required (see test code).
 =item die( $message, [<CODE>] )
 
 Alias for nagios_die(). Deprecated.
+
+=item max_state, max_state_alt
+
+These are wrapper function for Nagios::Plugin::Functions::max_state and
+Nagios::Plugin::Functions::max_state_alt.
 
 =back
 
