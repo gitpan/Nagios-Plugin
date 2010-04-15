@@ -11,6 +11,7 @@ use Carp;
 use base qw(Class::Accessor::Fast);
 
 Nagios::Plugin->mk_accessors(qw(
+								shortname
 								perfdata 
 								messages 
 								opts
@@ -20,12 +21,12 @@ Nagios::Plugin->mk_accessors(qw(
 use Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = (@STATUS_CODES);
-our @EXPORT_OK = qw(%ERRORS);
+our @EXPORT_OK = qw(%ERRORS %STATUS_TEXT);
 
 # CPAN stupidly won't index this module without a literal $VERSION here,
 #   so we're forced to duplicate it explicitly
 # Make sure you update $Nagios::Plugin::Functions::VERSION too
-our $VERSION = "0.33";
+our $VERSION = "0.34";
 
 sub new {
 	my $class = shift;
@@ -45,11 +46,8 @@ sub new {
 		},
 	);
 
-	my $shortname = undef;
-	if (exists $args{shortname}) {
-		$shortname = $args{shortname};
-		delete $args{shortname};
-	}
+	my $shortname = Nagios::Plugin::Functions::get_shortname(\%args);
+	delete $args{shortname} if (exists $args{shortname});
 	my $self = {
 		shortname => $shortname,
 		perfdata  => [],           # to be added later
@@ -104,14 +102,6 @@ sub max_state {
 }
 sub max_state_alt {
     Nagios::Plugin::Functions::max_state_alt(@_);
-}
-
-# Override default shortname accessor to add default
-sub shortname {
-    my $self = shift;
-    $self->{shortname} = shift if @_;
-    return $self->{shortname} || 
-           Nagios::Plugin::Functions::get_shortname();
 }
 
 # top level interface to Nagios::Plugin::Threshold
@@ -254,7 +244,7 @@ plugins
    );
 
    # add valid command line options and build them into your usage/help documentation.
-   $p->add_arg(
+   $np->add_arg(
      spec => 'warning|w=s',
      help => '-w, --warning=INTEGER:INTEGER .  See '
        . 'http://nagiosplug.sourceforge.net/developer-guidelines.html#THRESHOLDFORMAT '
@@ -262,7 +252,7 @@ plugins
    );
 
    # Parse @ARGV and process standard arguments (e.g. usage, help, version)
-   $p->getopts;
+   $np->getopts;
 
 
    # Exit/return value methods - nagios_exit( CODE, MESSAGE ), 
@@ -517,7 +507,7 @@ WARNING constant.  The thresholds may be:
 2. explicitly set by calling C<set_thresholds()> before C<check_threshold()>, or,
 
 3. implicitly set by command-line parameters -w, -c, --critical or
-   --warning, if you have run C<$plugin->getopts()>.
+   --warning, if you have run C<< $plugin->getopts() >>.
 
 The return value is ready to pass to C <nagios_exit>, e . g .,
 

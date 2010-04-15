@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Nagios-Plugin
-version:            0.33
+version:            0.34
 abstract:           A family of perl modules to streamline writing Nagios 
 author:
     - Nagios Plugin Development Team <nagiosplug-devel@lists.sourceforge.net>
@@ -24,7 +24,7 @@ no_index:
     directory:
         - t
         - inc
-generated_by:       ExtUtils::MakeMaker version 6.50
+generated_by:       ExtUtils::MakeMaker version 6.56
 meta-spec:
     url:      http://module-build.sourceforge.net/META-spec-v1.4.html
     version:  1.4

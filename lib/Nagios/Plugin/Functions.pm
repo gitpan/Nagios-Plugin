@@ -12,7 +12,7 @@ use Params::Validate qw(:types validate);
 use Math::Calc::Units;
 
 # Remember to update Nagios::Plugins as well
-our $VERSION = "0.33";
+our $VERSION = "0.34";
 
 our @STATUS_CODES = qw(OK WARNING CRITICAL UNKNOWN DEPENDENT);
 
@@ -54,12 +54,15 @@ my $_use_die = 0;
 sub _use_die { @_ ? $_use_die = shift : $_use_die };
 
 sub get_shortname {
-    my %arg = @_;
+    my $arg = shift;
 
-    return $arg{plugin}->shortname if $arg{plugin};
+    my $shortname = undef;
 
-    my $shortname = uc basename($ENV{NAGIOS_PLUGIN} || $0);
-    $shortname =~ s/^CHECK_//;     # Remove any leading CHECK_
+    return $arg->{shortname} if (defined($arg->{shortname}));
+    $shortname = $arg->{plugin} if (defined( $arg->{plugin}));
+
+    $shortname = uc basename($shortname || $ENV{NAGIOS_PLUGIN} || $0);
+    $shortname =~ s/^CHECK_(?:BY_)?//;     # Remove any leading CHECK_[BY_]
     $shortname =~ s/\..*$//;       # Remove any trailing suffix
     return $shortname;
 }
@@ -116,7 +119,8 @@ sub nagios_exit {
     # Setup output
     my $output = "$STATUS_TEXT{$code}";
     $output .= " - $message" if defined $message && $message ne '';
-    my $shortname = get_shortname(plugin => $arg->{plugin});
+    my $shortname = ($arg->{plugin} ? $arg->{plugin}->shortname : undef);
+    $shortname ||= get_shortname(); # Should happen only if funnctions are called directly
     $output = "$shortname $output" if $shortname;
     if ($arg->{plugin}) {
         my $plugin = $arg->{plugin};
@@ -173,7 +177,7 @@ sub nagios_die {
 
     # Else just assume $arg1 is the message and hope for the best
     else {
-        return nagios_exit( UNKNOWN, $arg1, $rest );
+        return nagios_exit( UNKNOWN, $arg1, $arg2 );
     }
 }
 
