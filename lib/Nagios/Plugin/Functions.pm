@@ -12,7 +12,7 @@ use Params::Validate qw(:types validate);
 use Math::Calc::Units;
 
 # Remember to update Nagios::Plugins as well
-our $VERSION = "0.34";
+our $VERSION = "0.35";
 
 our @STATUS_CODES = qw(OK WARNING CRITICAL UNKNOWN DEPENDENT);
 
@@ -391,6 +391,8 @@ message.
 If join_all is supplied, however, it will be used as a string to
 join the resultant critical, warning, and ok messages together i.e.
 all messages are joined and returned.
+
+=back
 
 =item get_shortname
 
