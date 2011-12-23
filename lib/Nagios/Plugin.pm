@@ -26,7 +26,7 @@ our @EXPORT_OK = qw(%ERRORS %STATUS_TEXT);
 # CPAN stupidly won't index this module without a literal $VERSION here,
 #   so we're forced to duplicate it explicitly
 # Make sure you update $Nagios::Plugin::Functions::VERSION too
-our $VERSION = "0.35";
+our $VERSION = "0.36";
 
 sub new {
 	my $class = shift;
@@ -110,7 +110,7 @@ sub check_threshold {
 
 	my %args;
 
-	if ( $#_ == 0 && ! ref $_[0]) {  # one positional param
+	if ( $#_ == 0 && (! ref $_[0] || ref $_[0] eq "ARRAY" )) {  # one positional param
 		%args = (check => shift);
 	}
 	else {
@@ -289,7 +289,7 @@ plugins
        $np->add_message( OK, $_ );
      }
    }
-   ($code, $message) = $np->check_message();
+   ($code, $message) = $np->check_messages();
    nagios_exit( $code, $message );
    # If any items in collection matched m/Error/, returns CRITICAL and 
    #   the joined set of Error messages; otherwise returns OK and the 
@@ -509,6 +509,9 @@ WARNING constant.  The thresholds may be:
 3. implicitly set by command-line parameters -w, -c, --critical or
    --warning, if you have run C<< $plugin->getopts() >>.
 
+You can specify $value as an array of values and each will be checked against
+the thresholds.
+
 The return value is ready to pass to C <nagios_exit>, e . g .,
 
   $p->nagios_exit(
@@ -541,7 +544,7 @@ add_messages and check_messages are higher-level convenience methods to add
 and then check a set of messages, returning an appropriate return code
 and/or result message. They are equivalent to maintaining a set of @critical,
 @warning, and and @ok message arrays (add_message), and then doing a final 
-if test (check_message) like this:
+if test (check_messages) like this:
 
   if (@critical) {
     nagios_exit( CRITICAL, join(' ', @critical) );

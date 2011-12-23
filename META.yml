@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Nagios-Plugin
-version:            0.35
+version:            0.36
 abstract:           A family of perl modules to streamline writing Nagios 
 author:
     - Nagios Plugin Development Team <nagiosplug-devel@lists.sourceforge.net>
