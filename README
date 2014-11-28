@@ -1,38 +1,21 @@
 Nagios::Plugin
 ==============
 
-These modules are meant for perl developers of plugins for Nagios 
-(http://nagiosplug.sourceforge.net). It is meant to simplify a lot 
-of the common functions required to do checking of a particular 
+These modules are meant for perl developers of plugins for Nagios
+(https://www.monitoring-plugins.org/). It is meant to simplify a lot
+of the common functions required to do checking of a particular
 service.
 
-The modules are still in an experimental stage and will be considered 
-stable when it reaches version 1.0.
+DEPRECATED
 
-INSTALLATION
-
-To install this module type the following:
-
-   perl Makefile.PL
-   make
-   make test
-   make install
-
-
-EXAMPLE SCRIPT
-
-"Enough talk!  Show me where to start!"
-
-See the file 'check_stuff.pl' in the 't' directory for a complete 
-working example of a plugin script.
-
+This module is *deprecated* in favour of Monitoring::Plugin.
+Read more about why this project had to change its name:
+https://www.monitoring-plugins.org/news/new-project-name.html
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2006 by Nagios Plugin Development Team
+Copyright (C) 2006-2014 by Monitoring Plugin Development Team
 
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.4 or,
-at your option, any later version of Perl 5 you may have available.
-
+This library is free software, you can redistribute it and/or modify
+it under the same terms as Perl itself.
 

@@ -9,7 +9,6 @@ lib/Nagios/Plugin/Range.pm
 lib/Nagios/Plugin/Threshold.pm
 Makefile.PL
 MANIFEST			This list of files
-META.yml
 README
 t/check_stuff.pl
 t/check_stuff.t
@@ -56,3 +55,5 @@ t/npg03/input/13_nosection_explicit_dies
 t/npg03/input/14_badsection_dies
 t/npg03/plugins.ini
 t/npg03/README
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

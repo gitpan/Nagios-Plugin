@@ -1,5 +1,8 @@
 Revision history for Perl module Nagios::Plugin.
 
+0.37 29nd September 2014
+  - deprecated this module in favour of Monitoring::Plugin
+
 0.36 22nd December 2011
   - Updated check_threshold to allow multiple check values to be checked at once
 

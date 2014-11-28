@@ -1,0 +1,43 @@
+{
+   "abstract" : "A family of perl modules to streamline writing Nagios",
+   "author" : [
+      "Monitoring Plugin Development Team <team@monitoring-plugins.org>"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "ExtUtils::MakeMaker version 6.72, CPAN::Meta::Converter version 2.133380",
+   "license" : [
+      "unknown"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Nagios-Plugin",
+   "no_index" : {
+      "directory" : [
+         "t",
+         "inc"
+      ]
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "0"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "0"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Monitoring::Plugin" : "0",
+            "Test::More" : "0.62",
+            "base" : "0"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "version" : "0.37"
+}
